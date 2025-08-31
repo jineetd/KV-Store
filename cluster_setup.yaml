@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-manager
+  labels:
+    app: control-manager
+  namespace: test-ns
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: control-manager
+  template:
+    metadata:
+      labels:
+        app: control-manager
+    spec:
+      containers:
+      - name: control-manager
+        image: control-manager:latest
+        imagePullPolicy: Never
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: worker
+  namespace: test-ns
+spec:
+  serviceName: "worker"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: worker:latest
+        imagePullPolicy: Never
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MOUNT_PATH
+          value: /data
+        volumeMounts:
+        - name: worker-storage
+          mountPath: /data  # Where your app writes files
+  volumeClaimTemplates:
+  - metadata:
+      name: worker-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 250Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: test-ns
+spec:
+  clusterIP: None  # Makes it headless
+  selector:
+    app: worker
+  ports:
+  - port: 80
+    name: dummy  # You can change/remove this

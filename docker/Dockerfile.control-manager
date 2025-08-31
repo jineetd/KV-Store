@@ -1,0 +1,8 @@
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+
+# Define the rest of your dockerfile here
+COPY ./protos .
+COPY ./control-manager .
+
+ENTRYPOINT ["./control-manager"]
