@@ -32,40 +32,22 @@ Run all the below commands from the root directory.
 Install all libaries using install.sh script after installing go.
 
 ### 2. Build script
-Run build.sh so that go binaries for control-manager and worker are built and docker images are generated for control-manager and worker. Run the command in root of the repository. 
-
-### 3. Kind cluster and namespace
-Run below command to create a kind cluster with namespace test-ns.
+Run build.sh so that go binaries for control-manager and worker are built and docker images are generated for control-manager and worker. Run the command in root of the repository.
 ```
-kind create cluster
-kubectl cluster-info --context kind-kind
-kubectl create ns test-ns
+jineetdesai@Jineets-Air KV-Store % sh build.sh
 ```
 
-### 4. Add Helm for etcd
-Install etcd and it runs as a docker container. Check the docker images generated.
+### 3. Run the script to deploy the kv store in k8s cluster.
 ```
-helm install -n test-ns etcd bitnami/etcd --set auth.rbac.create=false
-docker images
+jineetdesai@Jineets-Air KV-Store % sh deploy_cluster.sh
 ```
 
-### 5. Load docker images into kind.
-```
-kind load docker-image control-manager:latest
-kind load docker-image worker:latest
-```
-
-### 6. Apply the YAML config file for kubernetes components
-```
-kubectl -n test-ns apply -f cluster_setup.yaml
-```
-
-### 7. Get names of all pods to view their logs
+### 4. Get names of all pods to view their logs
 ```
 kubectl get all -n test-ns
 ```
 
-### 10. Cleanup kind cluster,docker containers and images
+### Cleanup kind cluster,docker containers and images
 ```
 sh cleanup.sh
 ```
