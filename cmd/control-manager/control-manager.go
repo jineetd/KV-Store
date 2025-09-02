@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"go.etcd.io/etcd/client/v3"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"hash/fnv"
 	pb "kvstore/protos"
+	"net"
 	"os"
 	"strconv"
 	"time"
@@ -25,6 +27,8 @@ var (
 		"Number of worker pods for our distributed kv-store")
 	num_kv_store_shards = flag.Int("kv_num_shards", 9,
 		"Total number of shards for our kvstore. All shards will be distributed across worker nodes.")
+	server_port = flag.Int("kv_control_manager_grpc_server_port", 50052,
+		"The grpc server port for control manager to get client requests.")
 )
 
 // Define all global variables related to pod environment.
@@ -142,14 +146,14 @@ func getWorkerNodeForKey(key string) string {
 	return "worker-" + strconv.Itoa(node_id)
 }
 
-func GetKeyInternal(key string) error {
+func GetKeyInternal(key string) (string, error) {
 	// Get the worker pod based on the shard of this key.
 	worker_pod := getWorkerNodeForKey(key)
 	// Make RPC call to the worker pod.
 	rpc_client := rpcClients[worker_pod]
 	if rpc_client == nil {
 		glog.Errorf("RPC client not initialized: %s", worker_pod)
-		return errors.New("Rpc client does not exists.")
+		return "", errors.New("Rpc client does not exists.")
 	}
 	// Generate internal request id
 	req_id := uuid.New().String()
@@ -162,11 +166,66 @@ func GetKeyInternal(key string) error {
 		ctx, &pb.GetKeyInternalArg{Key: key})
 	if err != nil {
 		glog.Infof("No response from server: %v", err)
-		return err
+		return "", err
 	}
 	glog.Infof("Response GetKeyInternal request_id: %s from worker node: %s is %s", req_id, worker_pod, r.String())
-	return nil
+	return r.GetValue(), nil
 }
+
+//------------------------------------------------------------------------------
+// GRPC Service Implementations
+//------------------------------------------------------------------------------
+// Implememt the MapReduceServiceServer
+type server struct {
+	pb.UnimplementedKvStoreInterfaceServer
+}
+
+// Implement the PutKey RPC method.
+func (s *server) PutKey(ctx context.Context, in *pb.PutKeyArg) (*pb.PutKeyRet, error) {
+	key := in.GetKey()
+	value := in.GetValue()
+	glog.Infof("Received PutKey request for key: %s", key)
+	err := PutKeyInternal(key, value)
+	var is_write_success bool
+	if err != nil {
+		is_write_success = false
+	} else {
+		is_write_success = true
+	}
+	return &pb.PutKeyRet{Success: is_write_success}, nil
+}
+
+// Implement the GetKey RPC method
+func (s *server) GetKey(ctx context.Context, in *pb.GetKeyArg) (*pb.GetKeyRet, error) {
+	key := in.GetKey()
+	glog.Infof("Received GetKeyInternal request for key: %s", key)
+	value, err := GetKeyInternal(key)
+	var is_read_success bool
+	if err != nil {
+		is_read_success = false
+	} else {
+		is_read_success = true
+	}
+	return &pb.GetKeyRet{Success: is_read_success, Value: value}, nil
+}
+
+// Helper method to Init the gRPC server in order to receive calls from
+// kv store clients.
+func MayBeStartGrpcServer() {
+	// Start the grpc server to receive calls from control-manager.
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *server_port))
+	if err != nil {
+		glog.Fatalf("Failed to listen: %v", err)
+	}
+	worker_server := grpc.NewServer()
+	pb.RegisterKvStoreInterfaceServer(worker_server, &server{})
+	glog.Infof("Worker grpc service listening at %v", lis.Addr())
+	if err := worker_server.Serve(lis); err != nil {
+		glog.Fatalf("Failed to server: %v", err)
+	}
+}
+
+//------------------------------------------------------------------------------
 
 // Main method goes here.
 func main() {
@@ -179,7 +238,10 @@ func main() {
 	// Call the method to perform leader election.
 	PerformLeaderElection()
 
-	// Init the RPC clients
+	// Start the gRPC server in a separate go routine thread.
+	go MayBeStartGrpcServer()
+
+	// Init the RPC clients to workers.
 	initRpcClients()
 
 	PutKeyInternal("test_key", "test_value")
