@@ -238,16 +238,13 @@ func main() {
 	// Call the method to perform leader election.
 	PerformLeaderElection()
 
-	// Start the gRPC server in a separate go routine thread.
-	go MayBeStartGrpcServer()
-
 	// Init the RPC clients to workers.
 	initRpcClients()
 
 	PutKeyInternal("test_key", "test_value")
 	GetKeyInternal("test_key")
 
-	glog.Info("Sleep the current master node for 2 mins.")
-	time.Sleep(120 * time.Second)
+	// Start the gRPC server in a separate go routine thread.
+	MayBeStartGrpcServer()
 
 }

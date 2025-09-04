@@ -14,6 +14,3 @@ kind load docker-image worker:latest
 
 # Apply the YAML file for deployment.
 kubectl -n test-ns apply -f cluster_setup.yaml
-
-# Forward the gRPC port to local port for python client.
-kubectl port-forward service/grpc-service 50052:50052 -n test-ns
