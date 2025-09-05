@@ -3,25 +3,21 @@ syntax = "proto3";
 package main;
 option go_package = "./;kvstore";
 
-/* Define the error proto here */
-enum KvError {
-    kNoError = 0;
-    kKeyNotFound = 1;
-    kTimeout = 2;
-}
 
 /* All RPC service args and rets are supposed to be mentioned here */
 /* TODO: Let value just not be string, we can have a oneof field in the proto.*/
 message PutKeyInternalArg {
+    // Required, request id corresponding to PutKey RPC
+    string req_id = 1;
     // Required, Key value to store in kvstore
-    string key = 1;
+    string key = 2;
     // Required, Value to store in kvstore.
-    string value = 2;
+    string value = 3;
 }
 
 message PutKeyInternalRet {
     bool success = 1;
-    KvError error_status = 2;
+    string error_details = 2;
 }
 
 message GetKeyInternalArg {
@@ -31,8 +27,7 @@ message GetKeyInternalArg {
 
 message GetKeyInternalRet {
     bool success = 1;
-    KvError error_status = 2;
-    string value = 3;
+    string value = 2;
 }
 
 

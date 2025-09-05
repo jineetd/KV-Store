@@ -4,6 +4,22 @@ package main;
 option go_package = "./;kvstore";
 
 
+// Introduce error types and error protobuf message
+enum ErrorCode {
+    kNoError = 0;              // No error
+    kNotFound = 1;             // Key does not exist
+    kInvalidArgument = 2;      // Bad key or value
+    kInternalError = 3;        // Catch any internal error
+    kBackendError = 4;         // Catch all the disk write related errors.
+}
+
+message KvError {
+    // Required. Need to mention the error type.
+    ErrorCode error_type = 1;
+    // Optional. Mention the error details if required.
+    string error_details = 2;
+}
+
 /* All RPC service args and rets are supposed to be mentioned here */
 /* TODO: Let value just not be string, we can have a oneof field in the proto.*/
 message PutKeyArg {
@@ -15,6 +31,7 @@ message PutKeyArg {
 
 message PutKeyRet {
     bool success = 1;
+    KvError kv_error = 2;
 }
 
 message GetKeyArg {

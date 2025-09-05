@@ -100,30 +100,46 @@ func PerformLeaderElection() {
 // HELPER METHODS FOR PUT KEY AND GET KEY
 //------------------------------------------------------------------------------
 
-func PutKeyInternal(key string, value string) error {
+func PutKeyInternal(req_id string, key string, value string,
+	error_msg *pb.KvError) {
 	// Get the worker pod based on the shard of this key.
 	worker_pod := getWorkerNodeForKey(key)
 	// Make RPC call to the worker pod.
 	rpc_client := rpcClients[worker_pod]
 	if rpc_client == nil {
-		glog.Errorf("RPC client not initialized: %s", worker_pod)
-		return errors.New("Rpc client does not exists.")
+		error_msg.ErrorType = pb.ErrorCode_kInternalError
+		error_msg.ErrorDetails =
+			fmt.Sprintf("RPC client not initialized: %s", worker_pod)
+		return
 	}
-	// Generate internal request id
-	req_id := uuid.New().String()
 	glog.Infof("Call PutKeyInternal request_id: %s for worker node: %s ",
 		req_id, worker_pod)
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	r, err := rpc_client.PutKeyInternal(
-		ctx, &pb.PutKeyInternalArg{Key: key, Value: value})
+		ctx, &pb.PutKeyInternalArg{ReqId: req_id, Key: key, Value: value})
 	if err != nil {
-		glog.Infof("No response from server: %v", err)
-		return err
+		error_msg.ErrorType = pb.ErrorCode_kInternalError
+		error_msg.ErrorDetails =
+			fmt.Sprintf("No response from worker server")
+		return
 	}
-	glog.Infof("Response PutKeyInternal request_id: %s from worker node: %s is %s", req_id, worker_pod, r.GetSuccess())
-	return nil
+	// Check if we did not receive any errors from writing onto backend disk.
+	// All these errors are perceived as kBackend errors.
+	if !r.GetSuccess() {
+		error_msg.ErrorType = pb.ErrorCode_kBackendError
+		error_msg.ErrorDetails = r.GetErrorDetails()
+		return
+	}
+	glog.Infof(
+		"Received Response PutKeyInternal request_id: %s from worker node: %s is %s",
+		req_id,
+		worker_pod,
+		r.GetSuccess(),
+	)
+	// In case of success return kNoError. Let error details be empty.
+	error_msg.ErrorType = pb.ErrorCode_kNoError
 }
 
 func getRpcClientForWorkerPod(worker_pod string) (pb.KvStoreServiceClient, error) {
@@ -180,19 +196,42 @@ type server struct {
 	pb.UnimplementedKvStoreInterfaceServer
 }
 
-// Implement the PutKey RPC method.
-func (s *server) PutKey(ctx context.Context, in *pb.PutKeyArg) (*pb.PutKeyRet, error) {
+// Add validation for PutKey.
+// Returns true if arg is valid, else returns false along with error details.
+func ValidatePutKeyArg(in *pb.PutKeyArg) (bool, string) {
 	key := in.GetKey()
 	value := in.GetValue()
-	glog.Infof("Received PutKey request for key: %s", key)
-	err := PutKeyInternal(key, value)
-	var is_write_success bool
-	if err != nil {
-		is_write_success = false
-	} else {
-		is_write_success = true
+	if key == "" {
+		return false, "Cannot send empty key to kvstore."
 	}
-	return &pb.PutKeyRet{Success: is_write_success}, nil
+	if value == "" {
+		return false, "Cannot send empty value to kvstore."
+	}
+	return true, ""
+}
+
+// Implement the PutKey RPC method.
+func (s *server) PutKey(ctx context.Context, in *pb.PutKeyArg) (*pb.PutKeyRet, error) {
+	// Validate the PutArg.
+	is_valid_arg, error_details := ValidatePutKeyArg(in)
+	if is_valid_arg == false {
+		return &pb.PutKeyRet{
+			Success: false,
+			KvError: &pb.KvError{
+				ErrorType:    pb.ErrorCode_kInvalidArgument,
+				ErrorDetails: error_details,
+			}}, nil
+	}
+	key := in.GetKey()
+	value := in.GetValue()
+	// Generate internal request id
+	req_id := uuid.New().String()
+	glog.Infof("Received RPC PutKey request_id: %s for key: %s", req_id, key)
+	var error_msg pb.KvError
+	PutKeyInternal(req_id, key, value, &error_msg)
+	is_write_success := (error_msg.ErrorType == pb.ErrorCode_kNoError)
+	return &pb.PutKeyRet{Success: is_write_success,
+		KvError: &error_msg}, nil
 }
 
 // Implement the GetKey RPC method
@@ -201,10 +240,10 @@ func (s *server) GetKey(ctx context.Context, in *pb.GetKeyArg) (*pb.GetKeyRet, e
 	glog.Infof("Received GetKeyInternal request for key: %s", key)
 	value, err := GetKeyInternal(key)
 	var is_read_success bool
-	if err != nil {
-		is_read_success = false
-	} else {
+	if err == nil {
 		is_read_success = true
+	} else {
+		is_read_success = false
 	}
 	return &pb.GetKeyRet{Success: is_read_success, Value: value}, nil
 }
@@ -240,9 +279,6 @@ func main() {
 
 	// Init the RPC clients to workers.
 	initRpcClients()
-
-	PutKeyInternal("test_key", "test_value")
-	GetKeyInternal("test_key")
 
 	// Start the gRPC server in a separate go routine thread.
 	MayBeStartGrpcServer()

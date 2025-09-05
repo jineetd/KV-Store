@@ -38,9 +38,14 @@ type server struct {
 func (s *server) PutKeyInternal(ctx context.Context, in *pb.PutKeyInternalArg) (*pb.PutKeyInternalRet, error) {
 	key := in.GetKey()
 	value := in.GetValue()
-	glog.Infof("Received PutKeyInternal request for key: %s", key)
-	is_write_success := WriteKvToDisk(key, value)
-	return &pb.PutKeyInternalRet{Success: is_write_success}, nil
+	req_id := in.GetReqId()
+	glog.Infof("Received RPC PutKeyInternal request_id:%s for key: %s",
+		req_id, key)
+	is_write_success, error_details := WriteKvToDisk(key, value)
+	return &pb.PutKeyInternalRet{
+		Success:      is_write_success,
+		ErrorDetails: error_details,
+	}, nil
 }
 
 // Implement the GetKeyInternal RPC method
@@ -66,15 +71,16 @@ func getShardFromKey(key string) string {
 
 // Helper method to write KV to pod disk. Function returns true if the write
 // was successful, else returns false.
-func WriteKvToDisk(key string, value string) bool {
+func WriteKvToDisk(key string, value string) (bool, string) {
 	shard_id := getShardFromKey(key)
 	dirPath := filepath.Join(mount_path, shard_id)
 	filePath := filepath.Join(dirPath, key)
 
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		glog.Errorf("Failed to create dir: %w", err)
-		return false
+		error_str := fmt.Sprintf("Failed to create dir: %w", err)
+		glog.Errorf(error_str)
+		return false, error_str
 	}
 
 	// Open file with flags:
@@ -83,19 +89,21 @@ func WriteKvToDisk(key string, value string) bool {
 	// os.O_TRUNC  - truncate file when opened (overwrite)
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		glog.Errorf("failed to open file: %w", err)
-		return false
+		error_str := fmt.Sprintf("failed to open file: %w", err)
+		glog.Errorf(error_str)
+		return false, error_str
 	}
 	defer file.Close()
 
 	if _, err := file.WriteString(value); err != nil {
-		glog.Errorf("Error writing to file:", err)
-		return false
+		error_str := fmt.Sprintf("Error writing to file:", err)
+		glog.Errorf(error_str)
+		return false, error_str
 	}
 
 	glog.Infof("Key: %s Value: %s successfully written onto the disk", key, value)
-	// Return true in case of success.
-	return true
+	// Return true in case of success. Let error string be empty.
+	return true, ""
 }
 
 func GetValueFromDisk(key string) (bool, string) {

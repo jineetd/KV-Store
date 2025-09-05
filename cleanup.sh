@@ -14,3 +14,6 @@ rm -rf protos/*go*
 rm -rf protos/*py*
 rm $(pwd)/kv_client/kv_store_interface_pb2.py
 rm $(pwd)/kv_client/kv_store_interface_pb2_grpc.py
+
+# Remove all binaries.
+rm control-manager worker
