@@ -94,3 +94,17 @@ spec:
   ports:
   - port: 80
     name: dummy  # You can change/remove this
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-service
+spec:
+  selector:
+    app: control-manager      # Must match your pod label
+  ports:
+    - name: grpc
+      port: 50052           # External service port
+      targetPort: 50052     # Pod port
+  type: NodePort            # or LoadBalancer, depending on your setup

@@ -47,7 +47,39 @@ jineetdesai@Jineets-Air KV-Store % sh deploy_cluster.sh
 kubectl get all -n test-ns
 ```
 
-### Cleanup kind cluster,docker containers and images
+### 5. Cleanup kind cluster,docker containers and images
 ```
 sh cleanup.sh
+```
+
+## Accessing the KV Store via Python Client
+Once the KV store cluster is up and running, you may need to forward the gRPC port for the control-manager service to a local port in order to test or interact with the KV store using a Python client.
+```
+# Forward the gRPC port to local port for python client.
+kubectl port-forward service/grpc-service 50052:50052 -n test-ns
+```
+### Python Client Interface
+The Python client interface for the KV store is located in the kv_client directory:
+```
+jineetdesai@Jineets-Air kv_client % ls
+__init__.py		__pycache__		kv_store_interface.py
+jineetdesai@Jineets-Air kv_client %
+```
+
+### Writing your own python client
+You can implement your own Python client by importing the provided interface:
+```
+from kv_client import kv_store_interface
+```
+This interface provides the necessary method definitions to interact with the KV store.
+
+### Running the IO integrety test.
+```
+(grpc-env) jineetdesai@Jineets-Air KV-Store % python kv_client/test_kv_io_integrity.py 
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.105s
+
+OK
+(grpc-env) jineetdesai@Jineets-Air KV-Store %
 ```

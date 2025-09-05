@@ -1,0 +1,52 @@
+// Starter Proto file, feel free to change name of the file
+syntax = "proto3";
+package main;
+option go_package = "./;kvstore";
+
+
+// Introduce error types and error protobuf message
+enum ErrorCode {
+    kNoError = 0;              // No error
+    kNotFound = 1;             // Key does not exist
+    kInvalidArgument = 2;      // Bad key or value
+    kInternalError = 3;        // Catch any internal error
+    kBackendError = 4;         // Catch all the disk write related errors.
+}
+
+message KvError {
+    // Required. Need to mention the error type.
+    ErrorCode error_type = 1;
+    // Optional. Mention the error details if required.
+    string error_details = 2;
+}
+
+/* All RPC service args and rets are supposed to be mentioned here */
+/* TODO: Let value just not be string, we can have a oneof field in the proto.*/
+message PutKeyArg {
+    // Required, Key value to store in kvstore
+    string key = 1;
+    // Required, Value to store in kvstore.
+    string value = 2;
+}
+
+message PutKeyRet {
+    bool success = 1;
+    KvError kv_error = 2;
+}
+
+message GetKeyArg {
+    // Required. Key to fetch the data from KvStore.
+    string key = 1;
+}
+
+message GetKeyRet {
+    bool success = 1;
+    string value = 2;
+}
+
+
+/* All RPC services are supposed to be mentioned here */
+service KvStoreInterface {
+    rpc PutKey(PutKeyArg) returns (PutKeyRet) {}
+    rpc GetKey(GetKeyArg) returns (GetKeyRet) {}
+}
