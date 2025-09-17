@@ -3,7 +3,7 @@ import sys
 import os
 import argparse
 
-import kv_interface as kv
+from import kv_interface as kv
 
 class TestKVStore(unittest.TestCase):
     @classmethod
@@ -49,6 +49,15 @@ class TestKVStore(unittest.TestCase):
             res.kv_error.error_details,
             "Cannot send empty value to kvstore.")
         print("*** PASSED test_empty_value_write ***")
+
+    def test_empty_key_get(self):
+        print("*** START test_empty_key_get ***")
+        res = self.kv.get_key("")
+        self.assertEqual(res.success, False)
+        self.assertEqual(
+            res.kv_error.error_details,
+            "Cannot fetch empty key from kvstore")
+        print("*** PASSED test_empty_key_get ***")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

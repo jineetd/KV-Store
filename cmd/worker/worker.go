@@ -51,9 +51,13 @@ func (s *server) PutKeyInternal(ctx context.Context, in *pb.PutKeyInternalArg) (
 // Implement the GetKeyInternal RPC method
 func (s *server) GetKeyInternal(ctx context.Context, in *pb.GetKeyInternalArg) (*pb.GetKeyInternalRet, error) {
 	key := in.GetKey()
-	glog.Infof("Received GetKeyInternal request for key: %s", key)
-	is_read_success, value := GetValueFromDisk(key)
-	return &pb.GetKeyInternalRet{Success: is_read_success, Value: value}, nil
+	req_id := in.GetReqId()
+	glog.Infof("Received RPC GetKeyInternal request_id:%s for key: %s", req_id, key)
+	is_read_success, error_details, value := GetValueFromDisk(key)
+	return &pb.GetKeyInternalRet{
+		Success:      is_read_success,
+		Value:        value,
+		ErrorDetails: error_details}, nil
 }
 
 //------------------------------------------------------------------------------
@@ -106,16 +110,21 @@ func WriteKvToDisk(key string, value string) (bool, string) {
 	return true, ""
 }
 
-func GetValueFromDisk(key string) (bool, string) {
+// Helper method to fetch the key value pair from disk. Function returns true
+// if the disk read was successful, else returns false.
+// Returns (is_read_success, error_details, value)
+func GetValueFromDisk(key string) (bool, string, string) {
 	shard_id := getShardFromKey(key)
 	filePath := mount_path + "/" + shard_id + "/" + key
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		glog.Errorf("Error reading file:", err)
-		return false, ""
+		error_str := fmt.Sprintf("Error reading file:", err)
+		glog.Errorf(error_str)
+		return false, error_str, ""
 	}
+	glog.Infof("Key: %s has been successfully read from disk", key)
 	// Return success and the data fetched.
-	return true, string(data)
+	return true, "", string(data)
 }
 
 //------------------------------------------------------------------------------

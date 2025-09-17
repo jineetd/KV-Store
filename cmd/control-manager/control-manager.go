@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/golang/glog"
@@ -162,30 +161,42 @@ func getWorkerNodeForKey(key string) string {
 	return "worker-" + strconv.Itoa(node_id)
 }
 
-func GetKeyInternal(key string) (string, error) {
+// Returns the Value from Kv Store.
+func GetKeyInternal(req_id string, key string, error_msg *pb.KvError) string {
 	// Get the worker pod based on the shard of this key.
 	worker_pod := getWorkerNodeForKey(key)
 	// Make RPC call to the worker pod.
 	rpc_client := rpcClients[worker_pod]
 	if rpc_client == nil {
-		glog.Errorf("RPC client not initialized: %s", worker_pod)
-		return "", errors.New("Rpc client does not exists.")
+		error_msg.ErrorType = pb.ErrorCode_kInternalError
+		error_msg.ErrorDetails =
+			fmt.Sprintf("RPC client not initialized: %s", worker_pod)
+		return ""
 	}
-	// Generate internal request id
-	req_id := uuid.New().String()
 	glog.Infof("Call GetKeyInternal request_id: %s for worker node: %s ",
 		req_id, worker_pod)
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	r, err := rpc_client.GetKeyInternal(
-		ctx, &pb.GetKeyInternalArg{Key: key})
+		ctx, &pb.GetKeyInternalArg{ReqId: req_id, Key: key})
 	if err != nil {
-		glog.Infof("No response from server: %v", err)
-		return "", err
+		error_msg.ErrorType = pb.ErrorCode_kInternalError
+		error_msg.ErrorDetails = fmt.Sprintf("No response from server: %v", err)
+		return ""
 	}
-	glog.Infof("Response GetKeyInternal request_id: %s from worker node: %s is %s", req_id, worker_pod, r.String())
-	return r.GetValue(), nil
+	glog.Infof(
+		"Response GetKeyInternal request_id: %s from worker node: %s is %t",
+		req_id, worker_pod, r.GetSuccess())
+	if !r.GetSuccess() {
+		error_msg.ErrorType = pb.ErrorCode_kNotFound
+		error_msg.ErrorDetails = r.GetErrorDetails()
+		return ""
+	}
+	// In case of success return kNoError, let error details be empty.
+	// Return the value received from disk.
+	error_msg.ErrorType = pb.ErrorCode_kNoError
+	return r.GetValue()
 }
 
 //------------------------------------------------------------------------------
@@ -206,6 +217,16 @@ func ValidatePutKeyArg(in *pb.PutKeyArg) (bool, string) {
 	}
 	if value == "" {
 		return false, "Cannot send empty value to kvstore."
+	}
+	return true, ""
+}
+
+// Add validation for GetKey
+// Returns true if arg is valid, else returns false along with error details.
+func ValidateGetKeyArg(in *pb.GetKeyArg) (bool, string) {
+	key := in.GetKey()
+	if key == "" {
+		return false, "Cannot fetch empty key from kvstore"
 	}
 	return true, ""
 }
@@ -236,16 +257,29 @@ func (s *server) PutKey(ctx context.Context, in *pb.PutKeyArg) (*pb.PutKeyRet, e
 
 // Implement the GetKey RPC method
 func (s *server) GetKey(ctx context.Context, in *pb.GetKeyArg) (*pb.GetKeyRet, error) {
-	key := in.GetKey()
-	glog.Infof("Received GetKeyInternal request for key: %s", key)
-	value, err := GetKeyInternal(key)
-	var is_read_success bool
-	if err == nil {
-		is_read_success = true
-	} else {
-		is_read_success = false
+	// Valid the GetArg
+	is_valid_arg, error_details := ValidateGetKeyArg(in)
+	if is_valid_arg == false {
+		return &pb.GetKeyRet{
+			Success: false,
+			Value:   "",
+			KvError: &pb.KvError{
+				ErrorType:    pb.ErrorCode_kInvalidArgument,
+				ErrorDetails: error_details,
+			}}, nil
 	}
-	return &pb.GetKeyRet{Success: is_read_success, Value: value}, nil
+	key := in.GetKey()
+	// Generate internal request id.
+	req_id := uuid.New().String()
+	glog.Infof("Received RPC GetKey request_id: %s for key: %s", req_id, key)
+	var error_msg pb.KvError
+	value := GetKeyInternal(req_id, key, &error_msg)
+	is_read_success := (error_msg.ErrorType == pb.ErrorCode_kNoError &&
+		value != "")
+	return &pb.GetKeyRet{
+		Success: is_read_success,
+		Value:   value,
+		KvError: &error_msg}, nil
 }
 
 // Helper method to Init the gRPC server in order to receive calls from

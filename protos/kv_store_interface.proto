@@ -42,6 +42,7 @@ message GetKeyArg {
 message GetKeyRet {
     bool success = 1;
     string value = 2;
+    KvError kv_error = 3;
 }
 
 

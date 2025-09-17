@@ -21,13 +21,16 @@ message PutKeyInternalRet {
 }
 
 message GetKeyInternalArg {
+    // Required. request id corresponding to the GetKey RPC
+    string req_id = 1;
     // Required. Key to fetch the data from KvStore.
-    string key = 1;
+    string key = 2;
 }
 
 message GetKeyInternalRet {
     bool success = 1;
     string value = 2;
+    string error_details = 3;
 }
 
 
