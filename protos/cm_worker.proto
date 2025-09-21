@@ -3,6 +3,15 @@ syntax = "proto3";
 package main;
 option go_package = "./;kvstore";
 
+/* Define all protos related to the store. */
+message KvStoreObject {
+    // Required. Value for the kv store object entry.
+    string value = 1;
+
+    // Required. db_modified_ts drawn from oracle timestamp for this update.
+    int64 db_modified_ts = 2;
+}
+
 
 /* All RPC service args and rets are supposed to be mentioned here */
 /* TODO: Let value just not be string, we can have a oneof field in the proto.*/
@@ -21,13 +30,16 @@ message PutKeyInternalRet {
 }
 
 message GetKeyInternalArg {
+    // Required. request id corresponding to the GetKey RPC
+    string req_id = 1;
     // Required. Key to fetch the data from KvStore.
-    string key = 1;
+    string key = 2;
 }
 
 message GetKeyInternalRet {
     bool success = 1;
-    string value = 2;
+    KvStoreObject kv_object = 2;
+    string error_details = 3;
 }
 
 

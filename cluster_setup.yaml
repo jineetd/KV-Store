@@ -69,6 +69,8 @@ spec:
               fieldPath: status.podIP
         - name: MOUNT_PATH
           value: /data
+        - name: PERSIST_ORACLE
+          value: /data/oracle_timestamp
         volumeMounts:
         - name: worker-storage
           mountPath: /data  # Where your app writes files
