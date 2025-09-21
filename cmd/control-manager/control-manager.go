@@ -162,7 +162,7 @@ func getWorkerNodeForKey(key string) string {
 }
 
 // Returns the Value from Kv Store.
-func GetKeyInternal(req_id string, key string, error_msg *pb.KvError) string {
+func GetKeyInternal(req_id string, key string, error_msg *pb.KvError) *pb.KvStoreObject {
 	// Get the worker pod based on the shard of this key.
 	worker_pod := getWorkerNodeForKey(key)
 	// Make RPC call to the worker pod.
@@ -171,7 +171,7 @@ func GetKeyInternal(req_id string, key string, error_msg *pb.KvError) string {
 		error_msg.ErrorType = pb.ErrorCode_kInternalError
 		error_msg.ErrorDetails =
 			fmt.Sprintf("RPC client not initialized: %s", worker_pod)
-		return ""
+		return nil
 	}
 	glog.Infof("Call GetKeyInternal request_id: %s for worker node: %s ",
 		req_id, worker_pod)
@@ -183,7 +183,7 @@ func GetKeyInternal(req_id string, key string, error_msg *pb.KvError) string {
 	if err != nil {
 		error_msg.ErrorType = pb.ErrorCode_kInternalError
 		error_msg.ErrorDetails = fmt.Sprintf("No response from server: %v", err)
-		return ""
+		return nil
 	}
 	glog.Infof(
 		"Response GetKeyInternal request_id: %s from worker node: %s is %t",
@@ -191,12 +191,12 @@ func GetKeyInternal(req_id string, key string, error_msg *pb.KvError) string {
 	if !r.GetSuccess() {
 		error_msg.ErrorType = pb.ErrorCode_kNotFound
 		error_msg.ErrorDetails = r.GetErrorDetails()
-		return ""
+		return nil
 	}
 	// In case of success return kNoError, let error details be empty.
 	// Return the value received from disk.
 	error_msg.ErrorType = pb.ErrorCode_kNoError
-	return r.GetValue()
+	return r.GetKvObject()
 }
 
 //------------------------------------------------------------------------------
@@ -273,13 +273,14 @@ func (s *server) GetKey(ctx context.Context, in *pb.GetKeyArg) (*pb.GetKeyRet, e
 	req_id := uuid.New().String()
 	glog.Infof("Received RPC GetKey request_id: %s for key: %s", req_id, key)
 	var error_msg pb.KvError
-	value := GetKeyInternal(req_id, key, &error_msg)
+	kv_object := GetKeyInternal(req_id, key, &error_msg)
 	is_read_success := (error_msg.ErrorType == pb.ErrorCode_kNoError &&
-		value != "")
+		kv_object != nil)
 	return &pb.GetKeyRet{
-		Success: is_read_success,
-		Value:   value,
-		KvError: &error_msg}, nil
+		Success:      is_read_success,
+		Value:        kv_object.GetValue(),
+		DbModifiedTs: kv_object.GetDbModifiedTs(),
+		KvError:      &error_msg}, nil
 }
 
 // Helper method to Init the gRPC server in order to receive calls from
