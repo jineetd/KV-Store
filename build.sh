@@ -15,8 +15,8 @@ ln -s $(pwd)/protos/kv_store_interface_pb2_grpc.py kv_client/kv_store_interface_
 
 # Build the go binaries for the services.
 # Change the arch type if trying to build on windows system.
-env GOOS=linux GOARCH=amd64 GOARM=7 go build cmd/control-manager/control-manager.go
-env GOOS=linux GOARCH=amd64 GOARM=7 go build cmd/worker/worker.go
+env GOOS=linux GOARCH=amd64 GOARM=7 go build -o control-manager ./cmd/control-manager
+env GOOS=linux GOARCH=amd64 GOARM=7 go build -o worker ./cmd/worker
 
 # Build the docker container for the services.
 docker build -f docker/Dockerfile.control-manager -t control-manager:latest .
