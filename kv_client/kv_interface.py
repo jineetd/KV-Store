@@ -1,7 +1,7 @@
 # Peform all the gRPC related imports.
 import grpc
-import kv_store_interface_pb2
-import kv_store_interface_pb2_grpc
+from . import kv_store_interface_pb2
+from . import kv_store_interface_pb2_grpc
 
 
 class KvStoreInterface:
