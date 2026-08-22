@@ -1,10 +1,8 @@
 import unittest
-import sys
-import os
 import argparse
 import logging
 
-import kv_interface as kv
+from kv_client import kv_interface as kv
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -13,6 +11,7 @@ logger = logging.getLogger("testLogger")
 # Define host and port variables
 HOST = "localhost"
 PORT = "50052"
+
 
 class TestKVStore(unittest.TestCase):
     @classmethod
@@ -32,12 +31,10 @@ class TestKVStore(unittest.TestCase):
         logger.info(f"--- END test: {self._testMethodName} ---")
 
     def test_put_and_get(self):
-        # Perform put and verify success.
         logger.info("Put key: foo value:bar in kvstore")
         res = self.kv.put_key("foo", "bar")
         self.assertEqual(res.success, True)
 
-        # Perform get and verify the value
         logger.info("Fetch key: foo from kvstore")
         res = self.kv.get_key("foo")
         self.assertEqual(res.success, True)
@@ -112,13 +109,13 @@ class TestKVStore(unittest.TestCase):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', type=str, default="localhost", help="Host/IP of KVStore server")
-    parser.add_argument('--port', type=str, default="50052", help="Port of KVStore server")
+    parser.add_argument('--host', type=str, default="localhost",
+                        help="Host/IP of KVStore server")
+    parser.add_argument('--port', type=str, default="50052",
+                        help="Port of KVStore server")
 
-    # Parse known args so unittest doesn't complain about extra ones
     args, _ = parser.parse_known_args()
 
-    # Store in the class before tests run
     HOST = args.host
     PORT = args.port
     unittest.main()

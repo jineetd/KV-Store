@@ -59,26 +59,27 @@ Once the KV store cluster is up and running, you may need to forward the gRPC po
 kubectl port-forward service/grpc-service 50052:50052 -n test-ns
 ```
 ### Python Client Interface
-The Python client interface for the KV store is located in the kv_client directory:
+The Python client interface for the KV store is located in the `kv_client` directory:
 ```
 jineetdesai@Jineets-Air kv_client % ls
-__init__.py		__pycache__		kv_store_interface.py
+__init__.py    kv_interface.py
 jineetdesai@Jineets-Air kv_client %
 ```
 
 ### Writing your own python client
 You can implement your own Python client by importing the provided interface:
 ```
-from kv_client import kv_store_interface
+from kv_client.kv_interface import KvStoreInterface
 ```
 This interface provides the necessary method definitions to interact with the KV store.
 
-### Running the IO integrety test.
+### Running the IO integrity test
+Tests live in the `test/` directory. Run from the repository root:
 ```
-(grpc-env) jineetdesai@Jineets-Air KV-Store % python kv_client/test_kv_io_integrity.py 
+(grpc-env) jineetdesai@Jineets-Air KV-Store % python -m test.test_kv_io_integrity
 ...
 ----------------------------------------------------------------------
-Ran 3 tests in 0.105s
+Ran 6 tests in 0.105s
 
 OK
 (grpc-env) jineetdesai@Jineets-Air KV-Store %
