@@ -74,13 +74,36 @@ from kv_client.kv_interface import KvStoreInterface
 This interface provides the necessary method definitions to interact with the KV store.
 
 ### Running the IO integrity test
-Tests live in the `test/` directory. Run from the repository root:
+Tests live in the `test/` directory and use **pytest**. Run from the repository root:
 ```
-(grpc-env) jineetdesai@Jineets-Air KV-Store % python -m test.test_kv_io_integrity
+(grpc-env) jineetdesai@Jineets-Air KV-Store % pytest test/ -v
 ...
-----------------------------------------------------------------------
-Ran 6 tests in 0.105s
-
-OK
+6 passed in 0.23s
 (grpc-env) jineetdesai@Jineets-Air KV-Store %
+```
+
+Optional host/port overrides:
+```
+pytest test/ -v --host localhost --port 50052
+```
+
+### Running the performance benchmark
+Benchmarks live in the `bench/` directory. Run from the repository root:
+```
+(grpc-env) jineetdesai@Jineets-Air KV-Store % python -m bench.bench_kvstore
+```
+
+Quick smoke run (10 s per phase):
+```
+python -m bench.bench_kvstore --create-duration 10 --update-duration 10 --parallelism 2
+```
+
+High concurrency example:
+```
+python -m bench.bench_kvstore --parallelism 8 --host localhost --port 50052
+```
+
+Concurrency sweep:
+```
+for p in 1 4 8 16; do python -m bench.bench_kvstore --parallelism $p; done
 ```
