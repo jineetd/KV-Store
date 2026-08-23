@@ -86,3 +86,24 @@ Optional host/port overrides:
 ```
 pytest test/ -v --host localhost --port 50052
 ```
+
+### Running the performance benchmark
+Benchmarks live in the `bench/` directory. Run from the repository root:
+```
+(grpc-env) jineetdesai@Jineets-Air KV-Store % python -m bench.bench_kvstore
+```
+
+Quick smoke run (10 s per phase):
+```
+python -m bench.bench_kvstore --create-duration 10 --update-duration 10 --parallelism 2
+```
+
+High concurrency example:
+```
+python -m bench.bench_kvstore --parallelism 8 --host localhost --port 50052
+```
+
+Concurrency sweep:
+```
+for p in 1 4 8 16; do python -m bench.bench_kvstore --parallelism $p; done
+```
